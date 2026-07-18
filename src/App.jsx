@@ -47,6 +47,14 @@ const daysUntil = (dateStr) => {
   return Math.round((d - today) / 86400000);
 };
 
+const daysSince = (dateStr) => {
+  if (!dateStr) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const d = new Date(dateStr + "T00:00:00");
+  return Math.round((today - d) / 86400000);
+};
+
 const VACCINE_SUGGESTIONS = [
   "FMD (Foot & Mouth Disease)",
   "HS (Haemorrhagic Septicaemia)",
@@ -201,6 +209,7 @@ function CowForm({ initial, onSave, onCancel }) {
       age: "",
       lactation: "",
       status: "Milking",
+      lastDeliveryDate: "",
       pregnant: "No",
       breedingDate: "",
       photo: "",
@@ -238,6 +247,10 @@ function CowForm({ initial, onSave, onCancel }) {
             <option>Milking</option>
             <option>Dry</option>
           </select>
+        </Field>
+        <Field label="Date of delivery (last calving)">
+          <input type="date" className={inputCls} style={inputStyle} value={f.lastDeliveryDate}
+            onChange={(e) => set("lastDeliveryDate", e.target.value)} />
         </Field>
         <Field label="Pregnant?">
           <select className={inputCls} style={inputStyle} value={f.pregnant}
@@ -514,6 +527,12 @@ function CowsPage({ cows, addCow, updateCow, deleteCow }) {
 
   const active = cows.find((c) => c.tag === detail);
 
+  const needsInsemination = cows.filter((c) => {
+    if (c.pregnant === "Yes") return false;
+    const d = daysSince(c.lastDeliveryDate);
+    return d !== null && d >= 40;
+  });
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -522,6 +541,29 @@ function CowsPage({ cows, addCow, updateCow, deleteCow }) {
         </h2>
         <Btn icon={Plus} onClick={() => setShowAdd(true)}>Add cow</Btn>
       </div>
+
+      {needsInsemination.length > 0 && (
+        <div className="rounded-xl p-4 mb-4" style={{ backgroundColor: C.yellowSoft, border: `1px solid ${C.border}` }}>
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle size={18} color={C.yellow} />
+            <p className="font-bold text-sm" style={{ color: C.ink }}>
+              {needsInsemination.length} cow(s) not yet inseminated 40+ days after delivery
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {needsInsemination.map((c) => (
+              <button key={c.tag} onClick={() => setDetail(c.tag)}
+                className="flex items-center gap-2 rounded-md px-2.5 py-1.5"
+                style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
+                <TagChip tag={c.tag} color={C.yellow} />
+                <span className="text-xs font-semibold" style={{ color: C.inkSoft }}>
+                  {daysSince(c.lastDeliveryDate)} days since delivery
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {cows.length === 0 ? (
         <EmptyState text="No cows recorded yet. Add your first milking animal to start tracking lactation, pregnancy and vaccines." />
@@ -568,6 +610,10 @@ function CowsPage({ cows, addCow, updateCow, deleteCow }) {
               <Detail label="Age" value={`${active.age || "—"} years`} />
               <Detail label="Lactation number" value={active.lactation || "—"} />
               <Detail label="Status" value={active.status} />
+              <Detail label="Date of delivery" value={fmtDate(active.lastDeliveryDate)} />
+              {active.lastDeliveryDate && active.pregnant !== "Yes" && (
+                <Detail label="Days since delivery" value={`${daysSince(active.lastDeliveryDate)} days`} />
+              )}
               <Detail label="Pregnant" value={active.pregnant} />
               {active.pregnant === "Yes" && (
                 <Detail label="Estimated calving date" value={fmtDate(active.estCalvingDate)} />
