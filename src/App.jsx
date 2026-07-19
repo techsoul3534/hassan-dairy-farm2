@@ -41,6 +41,48 @@ const addMonths = (dateStr, n) => {
   return d.toISOString().slice(0, 10);
 };
 
+const addDays = (dateStr, n) => {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+// A cow is typically dried off 6 months and 10 days into pregnancy
+const dryOffDate = (breedingDate) => addDays(addMonths(breedingDate, 6), 10);
+
+// Calves are typically weaned off milk at 2 months and 25 days old
+const weaningDate = (dob) => addDays(addMonths(dob, 2), 25);
+
+// Find the salary rate that was in effect on a given date, from a
+// worker's rate-change history (each entry: { rate, from }).
+const rateEffectiveOn = (history, dateStr) => {
+  if (!history || history.length === 0) return 0;
+  const sorted = [...history].sort((a, b) => (a.from < b.from ? -1 : 1));
+  let rate = sorted[0].rate;
+  for (const entry of sorted) {
+    if (entry.from <= dateStr) rate = entry.rate;
+  }
+  return rate;
+};
+
+// Total salary accrued so far: one full month's pay is added for every
+// completed 30-day period since the worker's start date, using whatever
+// rate was in effect at the moment each period completed.
+const computeAccrued = (worker) => {
+  if (!worker.startDate) return 0;
+  const daysWorked = daysSince(worker.startDate);
+  if (daysWorked === null || daysWorked < 0) return 0;
+  const completedPeriods = Math.floor(daysWorked / 30);
+  let total = 0;
+  for (let k = 1; k <= completedPeriods; k++) {
+    const periodEnd = addDays(worker.startDate, 30 * k);
+    total += rateEffectiveOn(worker.salaryHistory, periodEnd);
+  }
+  return total;
+};
+
+const totalPaid = (worker) => (worker.payments || []).reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
 const daysUntil = (dateStr) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -437,6 +479,120 @@ function VaccineForm({ allAnimals, onSave, onCancel }) {
 }
 
 /* ---------------------------------------------------------
+   WORKER / SALARY FORMS
+--------------------------------------------------------- */
+function WorkerForm({ onSave, onCancel }) {
+  const [f, setF] = useState({ name: "", startDate: "", salary: "" });
+  const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
+  return (
+    <form
+      className="flex flex-col gap-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!f.name || !f.startDate || !f.salary) return;
+        onSave({
+          name: f.name,
+          startDate: f.startDate,
+          salary: Number(f.salary),
+          salaryHistory: [{ rate: Number(f.salary), from: f.startDate }],
+          payments: [],
+        });
+      }}
+    >
+      <Field label="Worker name">
+        <input required className={inputCls} style={inputStyle} value={f.name}
+          onChange={(e) => set("name", e.target.value)} placeholder="e.g. Karim" />
+      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Starting date">
+          <input type="date" required className={inputCls} style={inputStyle} value={f.startDate}
+            onChange={(e) => set("startDate", e.target.value)} />
+        </Field>
+        <Field label="Monthly salary">
+          <input type="number" required className={inputCls} style={inputStyle} value={f.salary}
+            onChange={(e) => set("salary", e.target.value)} placeholder="Rs." />
+        </Field>
+      </div>
+      <div className="flex justify-end gap-2 pt-1">
+        <Btn variant="ghost" onClick={onCancel}>Cancel</Btn>
+        <Btn type="submit">Add worker</Btn>
+      </div>
+    </form>
+  );
+}
+
+function SalaryChangeForm({ current, onSave, onCancel }) {
+  const [rate, setRate] = useState(current);
+  const [from, setFrom] = useState(new Date().toISOString().slice(0, 10));
+  return (
+    <form
+      className="flex flex-col gap-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!rate || !from) return;
+        onSave({ rate: Number(rate), from });
+      }}
+    >
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="New monthly salary">
+          <input type="number" required className={inputCls} style={inputStyle} value={rate}
+            onChange={(e) => setRate(e.target.value)} placeholder="Rs." />
+        </Field>
+        <Field label="Effective from">
+          <input type="date" required className={inputCls} style={inputStyle} value={from}
+            onChange={(e) => setFrom(e.target.value)} />
+        </Field>
+      </div>
+      <p className="text-xs" style={{ color: C.inkSoft }}>
+        Salary periods completed before this date keep using the old rate.
+      </p>
+      <div className="flex justify-end gap-2 pt-1">
+        <Btn variant="ghost" onClick={onCancel}>Cancel</Btn>
+        <Btn type="submit">Update salary</Btn>
+      </div>
+    </form>
+  );
+}
+
+function PaymentForm({ onSave, onCancel }) {
+  const [f, setF] = useState({ date: new Date().toISOString().slice(0, 10), amount: "", note: "" });
+  const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
+  return (
+    <form
+      className="flex flex-col gap-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!f.amount) return;
+        onSave({ id: uid(), date: f.date, amount: Number(f.amount), note: f.note });
+      }}
+    >
+      <p className="text-xs" style={{ color: C.inkSoft }}>
+        Log any amount actually handed to the worker — this is subtracted from what's owed.
+        If you pay ahead of what's due, the balance will show as an advance.
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Amount paid">
+          <input type="number" required className={inputCls} style={inputStyle} value={f.amount}
+            onChange={(e) => set("amount", e.target.value)} placeholder="Rs." />
+        </Field>
+        <Field label="Date">
+          <input type="date" className={inputCls} style={inputStyle} value={f.date}
+            onChange={(e) => set("date", e.target.value)} />
+        </Field>
+      </div>
+      <Field label="Note (optional)">
+        <input className={inputCls} style={inputStyle} value={f.note}
+          onChange={(e) => set("note", e.target.value)} placeholder="e.g. Eid advance" />
+      </Field>
+      <div className="flex justify-end gap-2 pt-1">
+        <Btn variant="ghost" onClick={onCancel}>Cancel</Btn>
+        <Btn type="submit">Save payment</Btn>
+      </div>
+    </form>
+  );
+}
+
+/* ---------------------------------------------------------
    DASHBOARD
 --------------------------------------------------------- */
 function StatCard({ emoji, label, count, color, soft, onClick }) {
@@ -460,7 +616,7 @@ function StatCard({ emoji, label, count, color, soft, onClick }) {
   );
 }
 
-function Dashboard({ cows, calves, beef, vaccines, setPage, setBeefTab }) {
+function Dashboard({ cows, calves, beef, vaccines, workers, addWorker, updateWorker, deleteWorker, setPage, setBeefTab }) {
   const dueVaccines = useMemo(
     () => vaccines.filter((v) => daysUntil(v.nextDue) <= 7).sort((a, b) => daysUntil(a.nextDue) - daysUntil(b.nextDue)),
     [vaccines]
@@ -514,6 +670,176 @@ function Dashboard({ cows, calves, beef, vaccines, setPage, setBeefTab }) {
           <ChevronRight size={18} color={C.inkSoft} />
         </button>
       </div>
+
+      <WorkersSection workers={workers} addWorker={addWorker} updateWorker={updateWorker} deleteWorker={deleteWorker} />
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------
+   WORKERS & SALARY SECTION (Dashboard)
+--------------------------------------------------------- */
+function WorkersSection({ workers, addWorker, updateWorker, deleteWorker }) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [detailId, setDetailId] = useState(null);
+  const [showSalaryChange, setShowSalaryChange] = useState(false);
+  const [showPayment, setShowPayment] = useState(false);
+
+  const active = workers.find((w) => w.id === detailId);
+
+  const rows = workers.map((w) => {
+    const accrued = computeAccrued(w);
+    const paid = totalPaid(w);
+    const balance = accrued - paid;
+    return { ...w, accrued, paid, balance };
+  });
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-lg font-bold" style={{ fontFamily: "'Zilla Slab', serif", color: C.ink }}>
+          Workers &amp; salary
+        </h2>
+        <Btn icon={Plus} onClick={() => setShowAdd(true)}>Add worker</Btn>
+      </div>
+
+      {rows.length === 0 ? (
+        <EmptyState text="No workers added yet. Add one to start tracking salary automatically every 30 days." />
+      ) : (
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {rows.map((w) => {
+            const tone = w.balance > 0 ? "red" : w.balance < 0 ? "green" : "gray";
+            const label =
+              w.balance > 0
+                ? `You owe Rs. ${w.balance.toLocaleString()}`
+                : w.balance < 0
+                ? `Advance of Rs. ${Math.abs(w.balance).toLocaleString()}`
+                : "Settled";
+            return (
+              <button key={w.id} onClick={() => setDetailId(w.id)}
+                className="text-left rounded-xl p-4 flex flex-col gap-2"
+                style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
+                <p className="font-bold" style={{ color: C.ink }}>{w.name}</p>
+                <p className="text-xs" style={{ color: C.inkSoft }}>
+                  Started {fmtDate(w.startDate)} · Rs. {w.salary?.toLocaleString()}/mo
+                </p>
+                <Badge tone={tone}>{label}</Badge>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {showAdd && (
+        <Modal title="Add worker" onClose={() => setShowAdd(false)}>
+          <WorkerForm onCancel={() => setShowAdd(false)}
+            onSave={(data) => { addWorker({ ...data, id: uid() }); setShowAdd(false); }} />
+        </Modal>
+      )}
+
+      {active && !showSalaryChange && !showPayment && (
+        <Modal title={active.name} onClose={() => setDetailId(null)}>
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <Detail label="Starting date" value={fmtDate(active.startDate)} />
+              <Detail label="Current salary" value={`Rs. ${active.salary?.toLocaleString()}/mo`} />
+              <Detail label="Total accrued so far" value={`Rs. ${computeAccrued(active).toLocaleString()}`} />
+              <Detail label="Total paid so far" value={`Rs. ${totalPaid(active).toLocaleString()}`} />
+            </div>
+
+            {(() => {
+              const balance = computeAccrued(active) - totalPaid(active);
+              const tone = balance > 0 ? "red" : balance < 0 ? "green" : "gray";
+              const label =
+                balance > 0
+                  ? `You owe Rs. ${balance.toLocaleString()}`
+                  : balance < 0
+                  ? `Worker is in advance by Rs. ${Math.abs(balance).toLocaleString()}`
+                  : "Fully settled";
+              return (
+                <div className="rounded-md px-3 py-2" style={{ backgroundColor: tone === "red" ? C.redSoft : tone === "green" ? C.greenSoft : C.graySoft }}>
+                  <p className="font-bold text-sm" style={{ color: tone === "red" ? C.red : tone === "green" ? C.green : C.gray }}>
+                    {label}
+                  </p>
+                </div>
+              );
+            })()}
+
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: C.gray }}>Salary history</p>
+              <div className="flex flex-col gap-1">
+                {[...(active.salaryHistory || [])].sort((a, b) => (a.from < b.from ? 1 : -1)).map((s, i) => (
+                  <p key={i} className="text-xs" style={{ color: C.inkSoft }}>
+                    Rs. {s.rate.toLocaleString()}/mo — effective from {fmtDate(s.from)}
+                  </p>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-bold uppercase tracking-wide" style={{ color: C.gray }}>Payments</p>
+                <Btn small icon={Plus} variant="ghost" onClick={() => setShowPayment(true)}>Add payment</Btn>
+              </div>
+              {(active.payments || []).length === 0 ? (
+                <p className="text-xs" style={{ color: C.inkSoft }}>No payments logged yet.</p>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  {[...active.payments].sort((a, b) => (a.date < b.date ? 1 : -1)).map((p) => (
+                    <div key={p.id} className="flex items-center justify-between text-xs rounded px-2 py-1.5"
+                      style={{ backgroundColor: C.paper }}>
+                      <span style={{ color: C.ink }}>
+                        Rs. {Number(p.amount).toLocaleString()} — {fmtDate(p.date)}{p.note ? ` (${p.note})` : ""}
+                      </span>
+                      <button
+                        onClick={() => {
+                          const updated = active.payments.filter((x) => x.id !== p.id);
+                          updateWorker(active.id, { payments: updated });
+                        }}
+                        className="p-1 rounded hover:opacity-70"
+                      >
+                        <Trash2 size={12} color={C.gray} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-between pt-2">
+              <Btn variant="danger" icon={Trash2} onClick={() => { deleteWorker(active.id); setDetailId(null); }}>Remove worker</Btn>
+              <Btn variant="ghost" onClick={() => setShowSalaryChange(true)}>Change salary</Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {active && showSalaryChange && (
+        <Modal title={`Change salary — ${active.name}`} onClose={() => setShowSalaryChange(false)}>
+          <SalaryChangeForm
+            current={active.salary}
+            onCancel={() => setShowSalaryChange(false)}
+            onSave={({ rate, from }) => {
+              const history = [...(active.salaryHistory || []), { rate, from }];
+              updateWorker(active.id, { salary: rate, salaryHistory: history });
+              setShowSalaryChange(false);
+            }}
+          />
+        </Modal>
+      )}
+
+      {active && showPayment && (
+        <Modal title={`Add payment — ${active.name}`} onClose={() => setShowPayment(false)}>
+          <PaymentForm
+            onCancel={() => setShowPayment(false)}
+            onSave={(payment) => {
+              const payments = [...(active.payments || []), payment];
+              updateWorker(active.id, { payments });
+              setShowPayment(false);
+            }}
+          />
+        </Modal>
+      )}
     </div>
   );
 }
@@ -533,6 +859,18 @@ function CowsPage({ cows, addCow, updateCow, deleteCow }) {
     const d = daysSince(c.lastDeliveryDate);
     return d !== null && d >= 40;
   });
+
+  const pregnantCows = cows
+    .filter((c) => c.pregnant === "Yes" && c.breedingDate)
+    .map((c) => {
+      const dryOff = dryOffDate(c.breedingDate);
+      const daysToDry = daysUntil(dryOff);
+      let dryStatus = "upcoming";
+      if (daysToDry < 0) dryStatus = "overdue";
+      else if (daysToDry <= 7) dryStatus = "due";
+      return { ...c, dryOff, daysToDry, dryStatus };
+    })
+    .sort((a, b) => a.daysToDry - b.daysToDry);
 
   return (
     <div>
@@ -566,7 +904,42 @@ function CowsPage({ cows, addCow, updateCow, deleteCow }) {
         </div>
       )}
 
-      {cows.length === 0 ? (
+      {pregnantCows.length > 0 && (
+        <div className="rounded-xl p-4 mb-4" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
+          <div className="flex items-center gap-2 mb-3">
+            <Bell size={18} color={C.green} />
+            <p className="font-bold text-sm" style={{ color: C.ink }}>
+              Pregnant cows ({pregnantCows.length}) — dry off at 6 months 10 days
+            </p>
+          </div>
+          <div className="flex flex-col gap-2">
+            {pregnantCows.map((c) => {
+              const tone = c.dryStatus === "overdue" ? "red" : c.dryStatus === "due" ? "yellow" : "green";
+              const label =
+                c.dryStatus === "overdue"
+                  ? `Dry off overdue by ${Math.abs(c.daysToDry)}d`
+                  : c.dryStatus === "due"
+                  ? (c.daysToDry === 0 ? "Dry off today" : `Dry off in ${c.daysToDry}d`)
+                  : `Dry off in ${c.daysToDry}d`;
+              return (
+                <button key={c.tag} onClick={() => setDetail(c.tag)}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-md px-3 py-2 text-left"
+                  style={{ backgroundColor: C.paper, border: `1px solid ${C.border}` }}>
+                  <div className="flex items-center gap-2">
+                    <TagChip tag={c.tag} color={C.green} />
+                    <span className="text-xs" style={{ color: C.inkSoft }}>
+                      Pregnancy started {fmtDate(c.breedingDate)} · Expected calving {fmtDate(c.estCalvingDate)}
+                    </span>
+                  </div>
+                  <Badge tone={tone}>{label}</Badge>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+
         <EmptyState text="No cows recorded yet. Add your first milking animal to start tracking lactation, pregnancy and vaccines." />
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -617,7 +990,13 @@ function CowsPage({ cows, addCow, updateCow, deleteCow }) {
               )}
               <Detail label="Pregnant" value={active.pregnant} />
               {active.pregnant === "Yes" && (
-                <Detail label="Estimated calving date" value={fmtDate(active.estCalvingDate)} />
+                <>
+                  <Detail label="Pregnancy start date" value={fmtDate(active.breedingDate)} />
+                  <Detail label="Estimated calving date" value={fmtDate(active.estCalvingDate)} />
+                  {active.breedingDate && (
+                    <Detail label="Dry off due" value={fmtDate(dryOffDate(active.breedingDate))} />
+                  )}
+                </>
               )}
             </div>
             <div className="flex justify-between pt-2">
@@ -650,6 +1029,16 @@ function CalvesPage({ calves, cows, addCalf, updateCalf, deleteCalf }) {
   const [editing, setEditing] = useState(false);
   const active = calves.find((c) => c.tag === detail);
 
+  const weaningReminders = calves
+    .filter((c) => c.dob)
+    .map((c) => {
+      const wean = weaningDate(c.dob);
+      const daysToWean = daysUntil(wean);
+      return { ...c, wean, daysToWean };
+    })
+    .filter((c) => c.daysToWean <= 7)
+    .sort((a, b) => a.daysToWean - b.daysToWean);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -658,6 +1047,36 @@ function CalvesPage({ calves, cows, addCalf, updateCalf, deleteCalf }) {
         </h2>
         <Btn icon={Plus} onClick={() => setShowAdd(true)}>Add calf</Btn>
       </div>
+
+      {weaningReminders.length > 0 && (
+        <div className="rounded-xl p-4 mb-4" style={{ backgroundColor: C.yellowSoft, border: `1px solid ${C.border}` }}>
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle size={18} color={C.yellow} />
+            <p className="font-bold text-sm" style={{ color: C.ink }}>
+              {weaningReminders.length} calf(s) ready to wean off milk (2 months 25 days old)
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {weaningReminders.map((c) => {
+              const tone = c.daysToWean < 0 ? "red" : "yellow";
+              const label =
+                c.daysToWean < 0
+                  ? `Overdue by ${Math.abs(c.daysToWean)}d`
+                  : c.daysToWean === 0
+                  ? "Wean today"
+                  : `Wean in ${c.daysToWean}d`;
+              return (
+                <button key={c.tag} onClick={() => setDetail(c.tag)}
+                  className="flex items-center gap-2 rounded-md px-2.5 py-1.5"
+                  style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
+                  <TagChip tag={c.tag} color={C.yellow} />
+                  <Badge tone={tone}>{label}</Badge>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {calves.length === 0 ? (
         <EmptyState text="No calves recorded yet. Add a calf and link it to its mother's tag number." />
@@ -696,6 +1115,9 @@ function CalvesPage({ calves, cows, addCalf, updateCalf, deleteCalf }) {
             <div className="grid grid-cols-2 gap-3 text-sm">
               <Detail label="Date of calving" value={fmtDate(active.dob)} />
               <Detail label="Mother's tag" value={active.motherTag || "—"} />
+              {active.dob && (
+                <Detail label="Wean off milk due" value={fmtDate(weaningDate(active.dob))} />
+              )}
             </div>
             <div className="flex justify-between pt-2">
               <Btn variant="danger" icon={Trash2} onClick={() => { deleteCalf(active.tag); setDetail(null); }}>Delete</Btn>
@@ -988,6 +1410,7 @@ export default function App() {
   const [beef, setBeef] = useState([]);
   const [vaccines, setVaccines] = useState([]);
   const [todos, setTodos] = useState([]);
+  const [workers, setWorkers] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [saveError, setSaveError] = useState(false);
 
@@ -1002,6 +1425,7 @@ export default function App() {
     setBeef(d.beef || []);
     setVaccines(d.vaccines || []);
     setTodos(d.todos || []);
+    setWorkers(d.workers || []);
   };
 
   // Load saved records once on startup, then keep listening for changes
@@ -1017,7 +1441,7 @@ export default function App() {
           .maybeSingle();
         if (error) throw error;
         if (!data) {
-          const initial = { cows: [], calves: [], beef: [], vaccines: [], todos: [] };
+          const initial = { cows: [], calves: [], beef: [], vaccines: [], todos: [], workers: [] };
           await supabase.from("farm_state").upsert({ id: "main", data: initial });
           data = { data: initial };
         }
@@ -1055,7 +1479,7 @@ export default function App() {
       try {
         const { error } = await supabase
           .from("farm_state")
-          .update({ data: { cows, calves, beef, vaccines, todos }, updated_at: new Date().toISOString() })
+          .update({ data: { cows, calves, beef, vaccines, todos, workers }, updated_at: new Date().toISOString() })
           .eq("id", "main");
         if (error) throw error;
         setSaveError(false);
@@ -1063,7 +1487,7 @@ export default function App() {
         setSaveError(true);
       }
     })();
-  }, [cows, calves, beef, vaccines, todos, loaded]);
+  }, [cows, calves, beef, vaccines, todos, workers, loaded]);
 
   const addCow = (c) => setCows((s) => [...s, c]);
   const updateCow = (tag, data) => setCows((s) => s.map((c) => (c.tag === tag ? { ...c, ...data } : c)));
@@ -1083,6 +1507,10 @@ export default function App() {
   const addTodo = (t) => setTodos((s) => [...s, t]);
   const toggleTodo = (id) => setTodos((s) => s.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
   const deleteTodo = (id) => setTodos((s) => s.filter((t) => t.id !== id));
+
+  const addWorker = (w) => setWorkers((s) => [...s, w]);
+  const updateWorker = (id, data) => setWorkers((s) => s.map((w) => (w.id === id ? { ...w, ...data } : w)));
+  const deleteWorker = (id) => setWorkers((s) => s.filter((w) => w.id !== id));
 
   const allAnimals = [
     ...cows.map((c) => ({ tag: c.tag, type: "Cow" })),
@@ -1162,7 +1590,9 @@ export default function App() {
 
       <main className="px-4 sm:px-8 py-6 max-w-6xl mx-auto">
         {page === "dashboard" && (
-          <Dashboard cows={cows} calves={calves} beef={beef} vaccines={vaccines} setPage={setPage} setBeefTab={setBeefTab} />
+          <Dashboard cows={cows} calves={calves} beef={beef} vaccines={vaccines} workers={workers}
+            addWorker={addWorker} updateWorker={updateWorker} deleteWorker={deleteWorker}
+            setPage={setPage} setBeefTab={setBeefTab} />
         )}
         {page === "cows" && (
           <CowsPage cows={cows} addCow={addCow} updateCow={updateCow} deleteCow={deleteCow} />
