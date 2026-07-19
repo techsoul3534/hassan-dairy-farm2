@@ -1049,7 +1049,7 @@ export default function App() {
   const firstRun = useRef(true);
   useEffect(() => {
     if (!loaded) return;
-    if (firstRun.current) { firstRun.current = false; return; }
+    if (firstRun.current) { firstRun.current = false; skipNextSave.current = false; return; }
     if (skipNextSave.current) { skipNextSave.current = false; return; }
     (async () => {
       try {
