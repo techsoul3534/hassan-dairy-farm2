@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   Plus, X, Trash2, Camera, Bell, ChevronRight, Search, Syringe,
-  ArrowLeft, Pencil, CheckSquare, Square, AlertTriangle, Milk,
+  ArrowLeft, Pencil, CheckSquare, Square, AlertTriangle,
   ClipboardList, Calendar
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
@@ -642,33 +642,38 @@ function Dashboard({ cows, calves, beef, vaccines, workers, addWorker, updateWor
         </div>
       </div>
 
-      <div>
-        <button
-          onClick={() => setPage("vaccines")}
-          className="w-full flex items-center justify-between rounded-xl p-4 text-left"
-          style={{
-            backgroundColor: dueVaccines.length ? C.yellowSoft : C.card,
-            border: `1px solid ${C.border}`,
-          }}
-        >
-          <div className="flex items-center gap-3">
-            <Bell size={20} color={dueVaccines.length ? C.yellow : C.gray} />
-            <div>
-              <p className="font-bold" style={{ color: C.ink }}>
-                {dueVaccines.length ? `${dueVaccines.length} vaccine reminder(s)` : "No vaccines due this week"}
-              </p>
-              {dueVaccines.length > 0 && (
-                <p className="text-xs" style={{ color: C.inkSoft }}>
-                  {dueVaccines.slice(0, 3).map((v) => v.vaccineName).join("  •  ")}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        <div>
+          <h2 className="text-lg font-bold mb-3" style={{ fontFamily: "'Zilla Slab', serif", color: C.ink }}>
+            Vaccines
+          </h2>
+          <button
+            onClick={() => setPage("vaccines")}
+            className="w-full flex items-center justify-between rounded-xl p-4 text-left"
+            style={{
+              backgroundColor: dueVaccines.length ? C.yellowSoft : C.card,
+              border: `1px solid ${C.border}`,
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <Bell size={20} color={dueVaccines.length ? C.yellow : C.gray} />
+              <div>
+                <p className="font-bold" style={{ color: C.ink }}>
+                  {dueVaccines.length ? `${dueVaccines.length} vaccine reminder(s)` : "No vaccines due this week"}
                 </p>
-              )}
+                {dueVaccines.length > 0 && (
+                  <p className="text-xs" style={{ color: C.inkSoft }}>
+                    {dueVaccines.slice(0, 3).map((v) => v.vaccineName).join("  •  ")}
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
-          <ChevronRight size={18} color={C.inkSoft} />
-        </button>
-      </div>
+            <ChevronRight size={18} color={C.inkSoft} />
+          </button>
+        </div>
 
-      <WorkersSection workers={workers} addWorker={addWorker} updateWorker={updateWorker} deleteWorker={deleteWorker} />
+        <WorkersSection workers={workers} addWorker={addWorker} updateWorker={updateWorker} deleteWorker={deleteWorker} />
+      </div>
     </div>
   );
 }
@@ -703,7 +708,7 @@ function WorkersSection({ workers, addWorker, updateWorker, deleteWorker }) {
       {rows.length === 0 ? (
         <EmptyState text="No workers added yet. Add one to start tracking salary automatically every 30 days." />
       ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid sm:grid-cols-2 gap-3">
           {rows.map((w) => {
             const tone = w.balance > 0 ? "red" : w.balance < 0 ? "green" : "gray";
             const label =
@@ -1536,40 +1541,21 @@ export default function App() {
         @import url('https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@600&display=swap');
         * { font-family: 'IBM Plex Sans', sans-serif; }
 
-        @keyframes farmWalk { from { left: -8%; } to { left: 108%; } }
-        @keyframes farmDrift { from { left: -12%; } to { left: 112%; } }
-        @keyframes farmSway { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
-
-        .farm-bg { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
-        .farm-bg-pasture {
-          position: absolute; left: 0; right: 0; bottom: 0; height: 16vh;
-          background: linear-gradient(180deg, rgba(66,92,58,0.05), rgba(66,92,58,0.14));
-        }
-        .farm-anim { position: absolute; animation: farmWalk linear infinite; will-change: left; }
-        .farm-anim-1 { bottom: 9vh; font-size: 2.3rem; opacity: 0.16; animation-duration: 58s; }
-        .farm-anim-2 { bottom: 5.5vh; font-size: 1.6rem; opacity: 0.14; animation-duration: 74s; animation-delay: -22s; }
-        .farm-anim-3 { bottom: 3vh; font-size: 1.4rem; opacity: 0.13; animation-duration: 95s; animation-delay: -50s; }
-        .farm-anim-4 { bottom: 11.5vh; font-size: 1.8rem; opacity: 0.12; animation-duration: 66s; animation-delay: -10s; }
-        .farm-cloud { position: absolute; animation: farmDrift linear infinite, farmSway 6s ease-in-out infinite; opacity: 0.12; will-change: left; }
-        .farm-cloud-1 { top: 6%; font-size: 2.2rem; animation-duration: 130s; }
-        .farm-cloud-2 { top: 15%; font-size: 1.5rem; animation-duration: 170s; animation-delay: -70s; }
-        .farm-cloud-3 { top: 10%; font-size: 1.7rem; animation-duration: 150s; animation-delay: -30s; }
-
-        @media (prefers-reduced-motion: reduce) {
-          .farm-anim, .farm-cloud { animation: none; }
+        .farm-watermark {
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          font-size: min(60vw, 640px);
+          line-height: 1;
+          opacity: 0.05;
+          pointer-events: none;
+          z-index: 0;
+          user-select: none;
         }
       `}</style>
 
-      <div className="farm-bg" aria-hidden="true">
-        <span className="farm-cloud farm-cloud-1">☁️</span>
-        <span className="farm-cloud farm-cloud-2">☁️</span>
-        <span className="farm-cloud farm-cloud-3">☁️</span>
-        <div className="farm-bg-pasture" />
-        <span className="farm-anim farm-anim-1">🐄</span>
-        <span className="farm-anim farm-anim-2">🐑</span>
-        <span className="farm-anim farm-anim-3">🐐</span>
-        <span className="farm-anim farm-anim-4">🐂</span>
-      </div>
+      <div className="farm-watermark" aria-hidden="true">🐄</div>
 
       {saveError && (
         <div className="px-4 sm:px-8 py-2 text-xs font-semibold text-center relative" style={{ backgroundColor: C.redSoft, color: C.red }}>
@@ -1577,21 +1563,24 @@ export default function App() {
         </div>
       )}
 
-      <header className="px-4 sm:px-8 pt-6 pb-4 relative" style={{ borderBottom: `1px solid ${C.border}` }}>
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-lg flex items-center justify-center text-xl shrink-0"
+      <header className="px-4 sm:px-8 pt-8 pb-4 relative" style={{ borderBottom: `1px solid ${C.border}` }}>
+        <div className="flex flex-col items-center text-center gap-3">
+          <div className="w-16 h-16 rounded-full flex items-center justify-center text-3xl shrink-0"
             style={{ backgroundColor: C.green }}>
-            <Milk size={22} color="#fff" />
+            🐮
           </div>
           <div>
-            <h1 className="text-2xl font-bold leading-tight" style={{ fontFamily: "'Zilla Slab', serif", color: C.ink }}>
+            <h1
+              className="text-3xl sm:text-4xl font-bold leading-tight uppercase"
+              style={{ fontFamily: "'Zilla Slab', serif", color: C.ink, letterSpacing: "0.06em" }}
+            >
               Hassan Dairy Farm
             </h1>
             <p className="text-xs" style={{ color: C.inkSoft }}>Livestock register &amp; day book</p>
           </div>
         </div>
 
-        <nav className="flex gap-1 mt-5 overflow-x-auto pb-1">
+        <nav className="flex justify-center gap-1 mt-6 overflow-x-auto pb-1">
           {nav.map((n) => (
             <button
               key={n.id}
