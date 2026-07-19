@@ -434,25 +434,18 @@ function BeefForm({ initial, onSave, onCancel }) {
 /* ---------------------------------------------------------
    VACCINE FORM
 --------------------------------------------------------- */
-function VaccineForm({ allAnimals, onSave, onCancel }) {
-  const [f, setF] = useState({ animalTag: "", vaccineName: "", dateGiven: "", nextDue: "" });
+function VaccineForm({ onSave, onCancel }) {
+  const [f, setF] = useState({ vaccineName: "", dateGiven: "", nextDue: "", note: "" });
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
   return (
     <form
       className="flex flex-col gap-4"
       onSubmit={(e) => {
         e.preventDefault();
-        if (!f.animalTag || !f.vaccineName) return;
+        if (!f.vaccineName) return;
         onSave(f);
       }}
     >
-      <Field label="Animal tag number">
-        <input list="all-tags" required className={inputCls} style={inputStyle} value={f.animalTag}
-          onChange={(e) => set("animalTag", e.target.value)} placeholder="e.g. 214" />
-        <datalist id="all-tags">
-          {allAnimals.map((a) => <option key={a.tag} value={a.tag}>{a.type}</option>)}
-        </datalist>
-      </Field>
       <Field label="Vaccine name">
         <input list="vaccine-names" required className={inputCls} style={inputStyle} value={f.vaccineName}
           onChange={(e) => set("vaccineName", e.target.value)} placeholder="e.g. FMD" />
@@ -470,6 +463,10 @@ function VaccineForm({ allAnimals, onSave, onCancel }) {
             onChange={(e) => set("nextDue", e.target.value)} />
         </Field>
       </div>
+      <Field label="Note (optional)">
+        <input className={inputCls} style={inputStyle} value={f.note}
+          onChange={(e) => set("note", e.target.value)} placeholder="e.g. Whole herd, given by Dr. Aslam" />
+      </Field>
       <div className="flex justify-end gap-2 pt-1">
         <Btn variant="ghost" onClick={onCancel}>Cancel</Btn>
         <Btn type="submit">Save vaccine record</Btn>
@@ -662,7 +659,7 @@ function Dashboard({ cows, calves, beef, vaccines, workers, addWorker, updateWor
               </p>
               {dueVaccines.length > 0 && (
                 <p className="text-xs" style={{ color: C.inkSoft }}>
-                  {dueVaccines.slice(0, 3).map((v) => `#${v.animalTag} · ${v.vaccineName}`).join("  •  ")}
+                  {dueVaccines.slice(0, 3).map((v) => v.vaccineName).join("  •  ")}
                 </p>
               )}
             </div>
@@ -1239,7 +1236,7 @@ function BeefPage({ beef, tab, setTab, addBeef, updateBeef, deleteBeef }) {
 /* ---------------------------------------------------------
    VACCINES PAGE
 --------------------------------------------------------- */
-function VaccinesPage({ vaccines, allAnimals, addVaccine, deleteVaccine }) {
+function VaccinesPage({ vaccines, addVaccine, deleteVaccine }) {
   const [showAdd, setShowAdd] = useState(false);
   const sorted = [...vaccines].sort((a, b) => daysUntil(a.nextDue) - daysUntil(b.nextDue));
 
@@ -1260,7 +1257,7 @@ function VaccinesPage({ vaccines, allAnimals, addVaccine, deleteVaccine }) {
       </div>
 
       {vaccines.length === 0 ? (
-        <EmptyState text="No vaccine records yet. Add one to get reminders before the next dose is due." />
+        <EmptyState text="No vaccine records yet. Add one to get reminders before the whole herd's next dose is due." />
       ) : (
         <div className="flex flex-col gap-2">
           {sorted.map((v) => {
@@ -1272,10 +1269,11 @@ function VaccinesPage({ vaccines, allAnimals, addVaccine, deleteVaccine }) {
                   <Syringe size={18} color={C.inkSoft} className="shrink-0" />
                   <div className="min-w-0">
                     <p className="font-semibold text-sm truncate" style={{ color: C.ink }}>
-                      #{v.animalTag} · {v.vaccineName}
+                      {v.vaccineName}
                     </p>
                     <p className="text-xs" style={{ color: C.inkSoft }}>
                       Given {fmtDate(v.dateGiven)} · Next due {fmtDate(v.nextDue)}
+                      {v.note ? ` · ${v.note}` : ""}
                     </p>
                   </div>
                 </div>
@@ -1293,7 +1291,7 @@ function VaccinesPage({ vaccines, allAnimals, addVaccine, deleteVaccine }) {
 
       {showAdd && (
         <Modal title="Add vaccine record" onClose={() => setShowAdd(false)}>
-          <VaccineForm allAnimals={allAnimals} onCancel={() => setShowAdd(false)}
+          <VaccineForm onCancel={() => setShowAdd(false)}
             onSave={(data) => { addVaccine({ ...data, id: uid() }); setShowAdd(false); }} />
         </Modal>
       )}
@@ -1512,12 +1510,6 @@ export default function App() {
   const updateWorker = (id, data) => setWorkers((s) => s.map((w) => (w.id === id ? { ...w, ...data } : w)));
   const deleteWorker = (id) => setWorkers((s) => s.filter((w) => w.id !== id));
 
-  const allAnimals = [
-    ...cows.map((c) => ({ tag: c.tag, type: "Cow" })),
-    ...calves.map((c) => ({ tag: c.tag, type: "Calf" })),
-    ...beef.map((b) => ({ tag: b.tag, type: b.category === "Beef" ? "Beef cattle" : b.subtype })),
-  ];
-
   const dueCount = vaccines.filter((v) => daysUntil(v.nextDue) <= 7).length;
 
   const nav = [
@@ -1539,19 +1531,53 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen w-full" style={{ backgroundColor: C.paper }}>
+    <div className="min-h-screen w-full relative" style={{ backgroundColor: C.paper }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@600&display=swap');
         * { font-family: 'IBM Plex Sans', sans-serif; }
+
+        @keyframes farmWalk { from { left: -8%; } to { left: 108%; } }
+        @keyframes farmDrift { from { left: -12%; } to { left: 112%; } }
+        @keyframes farmSway { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+
+        .farm-bg { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+        .farm-bg-pasture {
+          position: absolute; left: 0; right: 0; bottom: 0; height: 16vh;
+          background: linear-gradient(180deg, rgba(66,92,58,0.05), rgba(66,92,58,0.14));
+        }
+        .farm-anim { position: absolute; animation: farmWalk linear infinite; will-change: left; }
+        .farm-anim-1 { bottom: 9vh; font-size: 2.3rem; opacity: 0.16; animation-duration: 58s; }
+        .farm-anim-2 { bottom: 5.5vh; font-size: 1.6rem; opacity: 0.14; animation-duration: 74s; animation-delay: -22s; }
+        .farm-anim-3 { bottom: 3vh; font-size: 1.4rem; opacity: 0.13; animation-duration: 95s; animation-delay: -50s; }
+        .farm-anim-4 { bottom: 11.5vh; font-size: 1.8rem; opacity: 0.12; animation-duration: 66s; animation-delay: -10s; }
+        .farm-cloud { position: absolute; animation: farmDrift linear infinite, farmSway 6s ease-in-out infinite; opacity: 0.12; will-change: left; }
+        .farm-cloud-1 { top: 6%; font-size: 2.2rem; animation-duration: 130s; }
+        .farm-cloud-2 { top: 15%; font-size: 1.5rem; animation-duration: 170s; animation-delay: -70s; }
+        .farm-cloud-3 { top: 10%; font-size: 1.7rem; animation-duration: 150s; animation-delay: -30s; }
+
+        @media (prefers-reduced-motion: reduce) {
+          .farm-anim, .farm-cloud { animation: none; }
+        }
       `}</style>
 
+      <div className="farm-bg" aria-hidden="true">
+        <span className="farm-cloud farm-cloud-1">☁️</span>
+        <span className="farm-cloud farm-cloud-2">☁️</span>
+        <span className="farm-cloud farm-cloud-3">☁️</span>
+        <div className="farm-bg-pasture" />
+        <span className="farm-anim farm-anim-1">🐄</span>
+        <span className="farm-anim farm-anim-2">🐑</span>
+        <span className="farm-anim farm-anim-3">🐐</span>
+        <span className="farm-anim farm-anim-4">🐂</span>
+      </div>
+
       {saveError && (
-        <div className="px-4 sm:px-8 py-2 text-xs font-semibold text-center" style={{ backgroundColor: C.redSoft, color: C.red }}>
+        <div className="px-4 sm:px-8 py-2 text-xs font-semibold text-center relative" style={{ backgroundColor: C.redSoft, color: C.red }}>
           Couldn't save your last change — check your internet connection. Try again in a moment.
         </div>
       )}
 
-      <header className="px-4 sm:px-8 pt-6 pb-4" style={{ borderBottom: `1px solid ${C.border}` }}>
+      <header className="px-4 sm:px-8 pt-6 pb-4 relative" style={{ borderBottom: `1px solid ${C.border}` }}>
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-lg flex items-center justify-center text-xl shrink-0"
             style={{ backgroundColor: C.green }}>
@@ -1588,7 +1614,7 @@ export default function App() {
         </nav>
       </header>
 
-      <main className="px-4 sm:px-8 py-6 max-w-6xl mx-auto">
+      <main className="px-4 sm:px-8 py-6 max-w-6xl mx-auto relative">
         {page === "dashboard" && (
           <Dashboard cows={cows} calves={calves} beef={beef} vaccines={vaccines} workers={workers}
             addWorker={addWorker} updateWorker={updateWorker} deleteWorker={deleteWorker}
@@ -1604,7 +1630,7 @@ export default function App() {
           <BeefPage beef={beef} tab={beefTab} setTab={setBeefTab} addBeef={addBeef} updateBeef={updateBeef} deleteBeef={deleteBeef} />
         )}
         {page === "vaccines" && (
-          <VaccinesPage vaccines={vaccines} allAnimals={allAnimals} addVaccine={addVaccine} deleteVaccine={deleteVaccine} />
+          <VaccinesPage vaccines={vaccines} addVaccine={addVaccine} deleteVaccine={deleteVaccine} />
         )}
         {page === "todo" && (
           <TodoPage todos={todos} addTodo={addTodo} toggleTodo={toggleTodo} deleteTodo={deleteTodo} />
