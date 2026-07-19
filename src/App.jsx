@@ -24,6 +24,8 @@ const C = {
   yellowSoft: "#F4E3BE",
   gray: "#8A8272",
   graySoft: "#E7E1D0",
+  blue: "#3D6E7C",
+  blueSoft: "#DCE9EA",
 };
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -99,13 +101,9 @@ const daysSince = (dateStr) => {
 };
 
 const VACCINE_SUGGESTIONS = [
-  "FMD (Foot & Mouth Disease)",
-  "HS (Haemorrhagic Septicaemia)",
-  "BQ (Black Quarter)",
-  "Brucellosis",
-  "PPR (Peste des Petits Ruminants)",
-  "Enterotoxaemia",
-  "Anthrax",
+  "FMD",
+  "Lumpy Skin",
+  "9 Diseases Vaccine",
 ];
 
 /* ---------------------------------------------------------
@@ -139,6 +137,7 @@ function Badge({ children, tone = "green" }) {
     red: { bg: C.redSoft, fg: C.red },
     yellow: { bg: C.yellowSoft, fg: C.yellow },
     gray: { bg: C.graySoft, fg: C.gray },
+    blue: { bg: C.blueSoft, fg: C.blue },
   };
   const t = map[tone];
   return (
@@ -435,7 +434,7 @@ function BeefForm({ initial, onSave, onCancel }) {
    VACCINE FORM
 --------------------------------------------------------- */
 function VaccineForm({ onSave, onCancel }) {
-  const [f, setF] = useState({ vaccineName: "", dateGiven: "", nextDue: "", note: "" });
+  const [f, setF] = useState({ vaccineName: VACCINE_SUGGESTIONS[0], dateGiven: "", nextDue: "", note: "" });
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
   return (
     <form
@@ -446,12 +445,11 @@ function VaccineForm({ onSave, onCancel }) {
         onSave(f);
       }}
     >
-      <Field label="Vaccine name">
-        <input list="vaccine-names" required className={inputCls} style={inputStyle} value={f.vaccineName}
-          onChange={(e) => set("vaccineName", e.target.value)} placeholder="e.g. FMD" />
-        <datalist id="vaccine-names">
-          {VACCINE_SUGGESTIONS.map((v) => <option key={v} value={v} />)}
-        </datalist>
+      <Field label="Vaccine">
+        <select required className={inputCls} style={inputStyle} value={f.vaccineName}
+          onChange={(e) => set("vaccineName", e.target.value)}>
+          {VACCINE_SUGGESTIONS.map((v) => <option key={v} value={v}>{v}</option>)}
+        </select>
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Date given">
@@ -642,34 +640,39 @@ function Dashboard({ cows, calves, beef, vaccines, workers, addWorker, updateWor
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-        <div>
-          <h2 className="text-lg font-bold mb-3" style={{ fontFamily: "'Zilla Slab', serif", color: C.ink }}>
-            Vaccines
-          </h2>
-          <button
-            onClick={() => setPage("vaccines")}
-            className="w-full flex items-center justify-between rounded-xl p-4 text-left"
-            style={{
-              backgroundColor: dueVaccines.length ? C.yellowSoft : C.card,
-              border: `1px solid ${C.border}`,
-            }}
-          >
-            <div className="flex items-center gap-3">
-              <Bell size={20} color={dueVaccines.length ? C.yellow : C.gray} />
-              <div>
-                <p className="font-bold" style={{ color: C.ink }}>
-                  {dueVaccines.length ? `${dueVaccines.length} vaccine reminder(s)` : "No vaccines due this week"}
-                </p>
-                {dueVaccines.length > 0 && (
-                  <p className="text-xs" style={{ color: C.inkSoft }}>
-                    {dueVaccines.slice(0, 3).map((v) => v.vaccineName).join("  •  ")}
-                  </p>
-                )}
-              </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+        <div className="h-full flex flex-col">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-bold" style={{ fontFamily: "'Zilla Slab', serif", color: C.ink }}>
+              Vaccines
+            </h2>
+            <Btn small variant="ghost" icon={ChevronRight} onClick={() => setPage("vaccines")}>View all</Btn>
+          </div>
+
+          {dueVaccines.length === 0 ? (
+            <EmptyState text="No vaccines due this week. Add a record any time from the Vaccines tab." />
+          ) : (
+            <div className="flex flex-col gap-2">
+              {dueVaccines.map((v) => {
+                const d = daysUntil(v.nextDue);
+                const tone = d < 0 ? "red" : "yellow";
+                const label = d < 0 ? `Overdue ${Math.abs(d)}d` : d === 0 ? "Due today" : `Due in ${d}d`;
+                return (
+                  <button key={v.id} onClick={() => setPage("vaccines")}
+                    className="flex items-center justify-between rounded-xl p-3 text-left"
+                    style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: C.blueSoft }}>
+                        <Syringe size={15} color={C.blue} />
+                      </div>
+                      <span className="text-sm font-semibold" style={{ color: C.ink }}>{v.vaccineName}</span>
+                    </div>
+                    <Badge tone={tone}>{label}</Badge>
+                  </button>
+                );
+              })}
             </div>
-            <ChevronRight size={18} color={C.inkSoft} />
-          </button>
+          )}
         </div>
 
         <WorkersSection workers={workers} addWorker={addWorker} updateWorker={updateWorker} deleteWorker={deleteWorker} />
@@ -697,7 +700,7 @@ function WorkersSection({ workers, addWorker, updateWorker, deleteWorker }) {
   });
 
   return (
-    <div>
+    <div className="h-full flex flex-col">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-lg font-bold" style={{ fontFamily: "'Zilla Slab', serif", color: C.ink }}>
           Workers &amp; salary
@@ -721,7 +724,13 @@ function WorkersSection({ workers, addWorker, updateWorker, deleteWorker }) {
               <button key={w.id} onClick={() => setDetailId(w.id)}
                 className="text-left rounded-xl p-4 flex flex-col gap-2"
                 style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
-                <p className="font-bold" style={{ color: C.ink }}>{w.name}</p>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 font-bold text-xs"
+                    style={{ backgroundColor: C.greenSoft, color: C.green }}>
+                    {w.name?.charAt(0).toUpperCase()}
+                  </div>
+                  <p className="font-bold" style={{ color: C.ink }}>{w.name}</p>
+                </div>
                 <p className="text-xs" style={{ color: C.inkSoft }}>
                   Started {fmtDate(w.startDate)} · Rs. {w.salary?.toLocaleString()}/mo
                 </p>
