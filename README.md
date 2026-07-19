@@ -1,64 +1,73 @@
 # Hassan Dairy Farm — Livestock Register
 
 A React + Vite app for managing your dairy herd, calves, beef & mutton
-animals, vaccine reminders, and a daily to-do list. Data is saved in the
-browser (localStorage), so it stays put between visits on the same device.
+animals, vaccine reminders, and a daily to-do list. Data is stored in
+Supabase (a free hosted database), so every device — phone, tablet,
+laptop — sees the same live data, and changes on one device appear on
+the others automatically.
 
-## Run it locally first (recommended)
+## One-time setup: create your Supabase project
+
+1. Go to https://supabase.com and sign up (free).
+2. Click **New project**. Pick any name, set a database password
+   (save it somewhere), pick a region close to you, and create it.
+   Wait ~2 minutes while it provisions.
+3. In the left sidebar, open the **SQL Editor**, click **New query**,
+   paste in the contents of `supabase-setup.sql` (included in this
+   project), and click **Run**. This creates the table that stores
+   your farm's data.
+4. In the left sidebar, go to **Project Settings → Data API**. Copy:
+   - **Project URL**
+   - **anon public** key (under Project API keys)
+5. (Recommended) In the left sidebar go to **Database → Replication**
+   and enable replication for the `farm_state` table — this powers
+   the instant sync between devices. Without it, the app still works,
+   it just needs a manual refresh to see another device's changes.
+
+## Run it locally
 
 You'll need Node.js installed (v18 or later): https://nodejs.org
 
 ```bash
 npm install
+cp .env.example .env
+```
+
+Open the new `.env` file and paste in your Project URL and anon key
+from step 4 above. Then:
+
+```bash
 npm run dev
 ```
 
 Open the URL it prints (usually http://localhost:5173) and try it out.
 
-## Deploy to Vercel
+## Deploy to Netlify (or Vercel)
 
-1. Push this folder to a GitHub repository (see steps below).
-2. Go to https://vercel.com and sign in with GitHub.
-3. Click **Add New → Project**, select this repository.
-4. Vercel auto-detects Vite — leave build command as `npm run build` and
-   output directory as `dist`. Click **Deploy**.
-5. You'll get a live URL like `hassan-dairy-farm.vercel.app`.
+Same as before — push this folder to GitHub, then import it in
+Netlify/Vercel with build command `npm run build` and publish
+directory `dist`.
 
-## Deploy to Netlify
+**Important extra step:** your live site also needs the same two
+environment variables, since `.env` is never uploaded to GitHub:
 
-1. Push this folder to a GitHub repository (see steps below).
-2. Go to https://app.netlify.com and sign in with GitHub.
-3. Click **Add new site → Import an existing project**, pick the repo.
-4. Build command: `npm run build`  —  Publish directory: `dist`.
-5. Click **Deploy site**.
-
-## Pushing this folder to GitHub (needed for either option)
-
-```bash
-git init
-git add .
-git commit -m "Initial commit"
-```
-
-Then create a new empty repository on https://github.com/new (don't
-add a README there), and run the two commands it shows you, e.g.:
-
-```bash
-git remote add origin https://github.com/YOUR_USERNAME/hassan-dairy-farm.git
-git branch -M main
-git push -u origin main
-```
-
-After that, Vercel/Netlify will redeploy automatically every time you
-push a change to this repo.
+- **Netlify**: Site configuration → Environment variables → Add a
+  variable → add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` with
+  the same values from your `.env` file. Then trigger a new deploy
+  (Deploys → Trigger deploy → Clear cache and deploy site).
+- **Vercel**: Project Settings → Environment Variables → add the same
+  two, then redeploy.
 
 ## Notes
 
-- Data is stored per-browser/device via localStorage — it won't sync
-  between your phone and laptop automatically. If you want the whole
-  family/farm crew to see the same live data from different devices,
-  you'd need a real backend (e.g. Supabase or Firebase) instead of
-  localStorage — ask if you'd like help wiring that up.
-- Photos are stored as part of the record data, so avoid adding a very
-  large number of high-resolution photos, as browser storage has limits
-  (~5-10MB total depending on the browser).
+- Every device that opens your site URL shares the exact same data —
+  no per-device copies anymore.
+- The anon key is meant to be used in browser code, but this setup
+  gives anyone with that key full read/write access to your farm data
+  (there's no login screen). That's fine for a small private tool used
+  by you and your farm staff — just don't publish the live link
+  somewhere public. Ask if you'd like a login screen added later.
+- Photos are still stored as part of each record's data — avoid a very
+  large number of high-resolution photos, since Supabase's free tier
+  has a database size limit (500MB), and each photo adds to that.
+

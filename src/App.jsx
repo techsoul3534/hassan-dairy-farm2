@@ -4,6 +4,7 @@ import {
   ArrowLeft, Pencil, CheckSquare, Square, AlertTriangle, Milk,
   ClipboardList, Calendar
 } from "lucide-react";
+import { supabase } from "./supabaseClient";
 
 /* ---------------------------------------------------------
    TOKENS
@@ -993,39 +994,75 @@ export default function App() {
   const [page, setPage] = useState("dashboard");
   const [beefTab, setBeefTab] = useState("All");
 
-  // Load saved records once on startup
+  const skipNextSave = useRef(false);
+  const applyRemote = (d) => {
+    skipNextSave.current = true;
+    setCows(d.cows || []);
+    setCalves(d.calves || []);
+    setBeef(d.beef || []);
+    setVaccines(d.vaccines || []);
+    setTodos(d.todos || []);
+  };
+
+  // Load saved records once on startup, then keep listening for changes
+  // made from any other device (phone, laptop, etc.)
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem("hassan-farm-data");
-      if (raw) {
-        const data = JSON.parse(raw);
-        setCows(data.cows || []);
-        setCalves(data.calves || []);
-        setBeef(data.beef || []);
-        setVaccines(data.vaccines || []);
-        setTodos(data.todos || []);
+    let channel;
+    (async () => {
+      try {
+        let { data, error } = await supabase
+          .from("farm_state")
+          .select("data")
+          .eq("id", "main")
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) {
+          const initial = { cows: [], calves: [], beef: [], vaccines: [], todos: [] };
+          await supabase.from("farm_state").upsert({ id: "main", data: initial });
+          data = { data: initial };
+        }
+        applyRemote(data.data);
+      } catch (e) {
+        setSaveError(true);
+      } finally {
+        setLoaded(true);
       }
-    } catch (e) {
-      // no saved data yet, or read failed — start fresh
-    } finally {
-      setLoaded(true);
-    }
+
+      channel = supabase
+        .channel("farm_state_changes")
+        .on(
+          "postgres_changes",
+          { event: "UPDATE", schema: "public", table: "farm_state", filter: "id=eq.main" },
+          (payload) => {
+            if (payload.new && payload.new.data) applyRemote(payload.new.data);
+          }
+        )
+        .subscribe();
+    })();
+
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+    };
   }, []);
 
-  // Persist all records together whenever anything changes
+  // Persist all records together whenever anything changes locally
   const firstRun = useRef(true);
   useEffect(() => {
     if (!loaded) return;
     if (firstRun.current) { firstRun.current = false; return; }
-    try {
-      window.localStorage.setItem(
-        "hassan-farm-data",
-        JSON.stringify({ cows, calves, beef, vaccines, todos })
-      );
-      setSaveError(false);
-    } catch (e) {
-      setSaveError(true);
-    }
+    if (skipNextSave.current) { skipNextSave.current = false; return; }
+    (async () => {
+      try {
+        const { error } = await supabase
+          .from("farm_state")
+          .update({ data: { cows, calves, beef, vaccines, todos }, updated_at: new Date().toISOString() })
+          .eq("id", "main");
+        if (error) throw error;
+        setSaveError(false);
+      } catch (e) {
+        setSaveError(true);
+      }
+    })();
   }, [cows, calves, beef, vaccines, todos, loaded]);
 
   const addCow = (c) => setCows((s) => [...s, c]);
@@ -1082,7 +1119,7 @@ export default function App() {
 
       {saveError && (
         <div className="px-4 sm:px-8 py-2 text-xs font-semibold text-center" style={{ backgroundColor: C.redSoft, color: C.red }}>
-          Couldn't save your last change — your browser storage may be full. This session's data is still safe until you close the tab.
+          Couldn't save your last change — check your internet connection. Try again in a moment.
         </div>
       )}
 
