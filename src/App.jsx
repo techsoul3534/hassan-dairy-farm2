@@ -939,7 +939,7 @@ function CowsPage({ cows, addCow, updateCow, deleteCow }) {
         </div>
       )}
 
-
+      {cows.length === 0 ? (
         <EmptyState text="No cows recorded yet. Add your first milking animal to start tracking lactation, pregnancy and vaccines." />
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
