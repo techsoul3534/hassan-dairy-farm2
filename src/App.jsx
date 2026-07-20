@@ -711,34 +711,47 @@ function WorkersSection({ workers, addWorker, updateWorker, deleteWorker }) {
       {rows.length === 0 ? (
         <EmptyState text="No workers added yet. Add one to start tracking salary automatically every 30 days." />
       ) : (
-        <div className="grid sm:grid-cols-2 gap-3">
-          {rows.map((w) => {
-            const tone = w.balance > 0 ? "red" : w.balance < 0 ? "green" : "gray";
-            const label =
-              w.balance > 0
-                ? `You owe Rs. ${w.balance.toLocaleString()}`
-                : w.balance < 0
-                ? `Advance of Rs. ${Math.abs(w.balance).toLocaleString()}`
-                : "Settled";
-            return (
-              <button key={w.id} onClick={() => setDetailId(w.id)}
-                className="text-left rounded-xl p-4 flex flex-col gap-2"
-                style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 font-bold text-xs"
-                    style={{ backgroundColor: C.greenSoft, color: C.green }}>
-                    {w.name?.charAt(0).toUpperCase()}
+        <>
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            <StatCard emoji="🧑‍🌾" label="Workers" count={rows.length} color={C.blue} soft={C.blueSoft} />
+            <StatCard emoji="💰" label="You owe" count={rows.filter((w) => w.balance > 0).length} color={C.red} soft={C.redSoft} />
+            <StatCard emoji="✅" label="Settled" count={rows.filter((w) => w.balance <= 0).length} color={C.green} soft={C.greenSoft} />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {rows.map((w, i) => {
+              const tone = w.balance > 0 ? "red" : w.balance < 0 ? "green" : "gray";
+              const t = tone === "red" ? { soft: C.redSoft, color: C.red }
+                : tone === "green" ? { soft: C.greenSoft, color: C.green }
+                : { soft: C.graySoft, color: C.gray };
+              const avatarColors = [C.blue, C.yellow, C.green, C.red];
+              const avatar = avatarColors[i % avatarColors.length];
+              const label =
+                w.balance > 0
+                  ? `You owe Rs. ${w.balance.toLocaleString()}`
+                  : w.balance < 0
+                  ? `Advance of Rs. ${Math.abs(w.balance).toLocaleString()}`
+                  : "Settled";
+              return (
+                <button key={w.id} onClick={() => setDetailId(w.id)}
+                  className="h-full text-left rounded-xl p-4 flex flex-col gap-2 transition-transform hover:-translate-y-0.5"
+                  style={{ backgroundColor: t.soft, border: `1px solid ${C.border}` }}>
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 font-bold text-xs"
+                      style={{ backgroundColor: avatar, color: "#fff" }}>
+                      {w.name?.charAt(0).toUpperCase()}
+                    </div>
+                    <p className="font-bold" style={{ color: C.ink }}>{w.name}</p>
                   </div>
-                  <p className="font-bold" style={{ color: C.ink }}>{w.name}</p>
-                </div>
-                <p className="text-xs" style={{ color: C.inkSoft }}>
-                  Started {fmtDate(w.startDate)} · Rs. {w.salary?.toLocaleString()}/mo
-                </p>
-                <Badge tone={tone}>{label}</Badge>
-              </button>
-            );
-          })}
-        </div>
+                  <p className="text-xs" style={{ color: C.inkSoft }}>
+                    Started {fmtDate(w.startDate)} · Rs. {w.salary?.toLocaleString()}/mo
+                  </p>
+                  <Badge tone={tone}>{label}</Badge>
+                </button>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {showAdd && (
@@ -1261,6 +1274,16 @@ function VaccinesPage({ vaccines, addVaccine, deleteVaccine }) {
     return { tone: "green", label: `In ${d}d` };
   };
 
+  const toneStyle = {
+    red: { soft: C.redSoft, color: C.red },
+    yellow: { soft: C.yellowSoft, color: C.yellow },
+    green: { soft: C.greenSoft, color: C.green },
+  };
+
+  const overdueCount = vaccines.filter((v) => daysUntil(v.nextDue) < 0).length;
+  const dueSoonCount = vaccines.filter((v) => { const d = daysUntil(v.nextDue); return d >= 0 && d <= 7; }).length;
+  const upToDateCount = vaccines.filter((v) => daysUntil(v.nextDue) > 7).length;
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -1273,34 +1296,47 @@ function VaccinesPage({ vaccines, addVaccine, deleteVaccine }) {
       {vaccines.length === 0 ? (
         <EmptyState text="No vaccine records yet. Add one to get reminders before the whole herd's next dose is due." />
       ) : (
-        <div className="flex flex-col gap-2">
-          {sorted.map((v) => {
-            const s = statusOf(v);
-            return (
-              <div key={v.id} className="flex items-center justify-between rounded-xl p-3"
-                style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
-                <div className="flex items-center gap-3 min-w-0">
-                  <Syringe size={18} color={C.inkSoft} className="shrink-0" />
-                  <div className="min-w-0">
-                    <p className="font-semibold text-sm truncate" style={{ color: C.ink }}>
-                      {v.vaccineName}
+        <>
+          <div className="grid grid-cols-3 gap-3 mb-5">
+            <StatCard emoji="⏰" label="Overdue" count={overdueCount} color={C.red} soft={C.redSoft} />
+            <StatCard emoji="🔔" label="Due soon" count={dueSoonCount} color={C.yellow} soft={C.yellowSoft} />
+            <StatCard emoji="✅" label="Up to date" count={upToDateCount} color={C.green} soft={C.greenSoft} />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {sorted.map((v) => {
+              const s = statusOf(v);
+              const t = toneStyle[s.tone];
+              return (
+                <div key={v.id} className="h-full flex flex-col gap-3 rounded-xl p-4"
+                  style={{ backgroundColor: t.soft, border: `1px solid ${C.border}` }}>
+                  <div className="flex items-start justify-between">
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                      style={{ backgroundColor: "#fff" }}>
+                      <Syringe size={16} color={t.color} />
+                    </div>
+                    <button onClick={() => deleteVaccine(v.id)} className="p-1 rounded hover:opacity-70">
+                      <Trash2 size={15} color={C.gray} />
+                    </button>
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-bold text-sm" style={{ color: C.ink }}>{v.vaccineName}</p>
+                    <p className="text-xs mt-1" style={{ color: C.inkSoft }}>
+                      Given {fmtDate(v.dateGiven)}
                     </p>
                     <p className="text-xs" style={{ color: C.inkSoft }}>
-                      Given {fmtDate(v.dateGiven)} · Next due {fmtDate(v.nextDue)}
-                      {v.note ? ` · ${v.note}` : ""}
+                      Next due {fmtDate(v.nextDue)}
                     </p>
+                    {v.note && (
+                      <p className="text-xs mt-1 italic" style={{ color: C.inkSoft }}>{v.note}</p>
+                    )}
                   </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
                   <Badge tone={s.tone}>{s.label}</Badge>
-                  <button onClick={() => deleteVaccine(v.id)} className="p-1 rounded hover:opacity-70">
-                    <Trash2 size={16} color={C.gray} />
-                  </button>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {showAdd && (
@@ -1557,7 +1593,8 @@ export default function App() {
           transform: translate(-50%, -50%);
           font-size: min(60vw, 640px);
           line-height: 1;
-          opacity: 0.05;
+          opacity: 0.16;
+          filter: saturate(1.6);
           pointer-events: none;
           z-index: 0;
           user-select: none;
