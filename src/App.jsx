@@ -636,17 +636,19 @@ function Dashboard({ cows, calves, beef, vaccines, workers, addWorker, updateWor
         </div>
       </div>
 
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-bold" style={{ fontFamily: "'Zilla Slab', serif", color: C.ink }}>
-            Vaccines
-          </h2>
-          <Btn small variant="ghost" icon={ChevronRight} onClick={() => setPage("vaccines")}>View all</Btn>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        <div className="flex flex-col">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-bold" style={{ fontFamily: "'Zilla Slab', serif", color: C.ink }}>
+              Vaccines
+            </h2>
+            <Btn small variant="ghost" icon={ChevronRight} onClick={() => setPage("vaccines")}>View all</Btn>
+          </div>
+          <VaccineTypeCards vaccines={vaccines} deleteVaccine={deleteVaccine} variant="compact" />
         </div>
-        <VaccineTypeCards vaccines={vaccines} deleteVaccine={deleteVaccine} />
-      </div>
 
-      <WorkersSection workers={workers} addWorker={addWorker} updateWorker={updateWorker} deleteWorker={deleteWorker} />
+        <WorkersSection workers={workers} addWorker={addWorker} updateWorker={updateWorker} deleteWorker={deleteWorker} />
+      </div>
     </div>
   );
 }
@@ -1222,7 +1224,7 @@ function BeefPage({ beef, tab, setTab, addBeef, updateBeef, deleteBeef }) {
 /* ---------------------------------------------------------
    VACCINES PAGE
 --------------------------------------------------------- */
-function VaccineTypeCards({ vaccines, deleteVaccine }) {
+function VaccineTypeCards({ vaccines, deleteVaccine, variant = "grid" }) {
   const statusOf = (nextDue) => {
     if (!nextDue) return { tone: "gray", label: "Not scheduled" };
     const d = daysUntil(nextDue);
@@ -1245,6 +1247,35 @@ function VaccineTypeCards({ vaccines, deleteVaccine }) {
       .sort((a, b) => (a.dateGiven < b.dateGiven ? 1 : -1));
     return { name, latest: records[0] || null };
   });
+
+  if (variant === "compact") {
+    return (
+      <div className="flex flex-col gap-3">
+        {boxes.map(({ name, latest }) => {
+          const s = statusOf(latest?.nextDue);
+          const t = toneStyle[s.tone];
+          return (
+            <div key={name} className="flex items-center justify-between gap-3 rounded-xl p-3"
+              style={{ backgroundColor: t.soft, border: `1px solid ${C.border}` }}>
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                  style={{ backgroundColor: "#fff" }}>
+                  <Syringe size={15} color={t.color} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold truncate" style={{ color: C.ink }}>{name}</p>
+                  <p className="text-xs truncate" style={{ color: C.inkSoft }}>
+                    Given {latest ? fmtDate(latest.dateGiven) : "—"} · Next {latest ? fmtDate(latest.nextDue) : "—"}
+                  </p>
+                </div>
+              </div>
+              <Badge tone={s.tone}>{s.label}</Badge>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
