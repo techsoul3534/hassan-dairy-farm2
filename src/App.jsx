@@ -711,47 +711,36 @@ function WorkersSection({ workers, addWorker, updateWorker, deleteWorker }) {
       {rows.length === 0 ? (
         <EmptyState text="No workers added yet. Add one to start tracking salary automatically every 30 days." />
       ) : (
-        <>
-          <div className="grid grid-cols-3 gap-3 mb-4">
-            <StatCard emoji="🧑‍🌾" label="Workers" count={rows.length} color={C.blue} soft={C.blueSoft} />
-            <StatCard emoji="💰" label="You owe" count={rows.filter((w) => w.balance > 0).length} color={C.red} soft={C.redSoft} />
-            <StatCard emoji="✅" label="Settled" count={rows.filter((w) => w.balance <= 0).length} color={C.green} soft={C.greenSoft} />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {rows.map((w, i) => {
-              const tone = w.balance > 0 ? "red" : w.balance < 0 ? "green" : "gray";
-              const t = tone === "red" ? { soft: C.redSoft, color: C.red }
-                : tone === "green" ? { soft: C.greenSoft, color: C.green }
-                : { soft: C.graySoft, color: C.gray };
-              const avatarColors = [C.blue, C.yellow, C.green, C.red];
-              const avatar = avatarColors[i % avatarColors.length];
-              const label =
-                w.balance > 0
-                  ? `You owe Rs. ${w.balance.toLocaleString()}`
-                  : w.balance < 0
-                  ? `Advance of Rs. ${Math.abs(w.balance).toLocaleString()}`
-                  : "Settled";
-              return (
-                <button key={w.id} onClick={() => setDetailId(w.id)}
-                  className="h-full text-left rounded-xl p-4 flex flex-col gap-2 transition-transform hover:-translate-y-0.5"
-                  style={{ backgroundColor: t.soft, border: `1px solid ${C.border}` }}>
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 font-bold text-xs"
-                      style={{ backgroundColor: avatar, color: "#fff" }}>
-                      {w.name?.charAt(0).toUpperCase()}
-                    </div>
-                    <p className="font-bold" style={{ color: C.ink }}>{w.name}</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {rows.map((w, i) => {
+            const tone = w.balance > 0 ? "red" : w.balance < 0 ? "green" : "gray";
+            const t = tone === "red" ? { soft: C.redSoft, color: C.red }
+              : tone === "green" ? { soft: C.greenSoft, color: C.green }
+              : { soft: C.graySoft, color: C.gray };
+            const avatarColors = [C.blue, C.yellow, C.green, C.red];
+            const avatar = avatarColors[i % avatarColors.length];
+            const label =
+              w.balance > 0
+                ? `You owe Rs. ${w.balance.toLocaleString()}`
+                : w.balance < 0
+                ? `Advance of Rs. ${Math.abs(w.balance).toLocaleString()}`
+                : "Settled";
+            return (
+              <button key={w.id} onClick={() => setDetailId(w.id)}
+                className="h-full text-left rounded-xl p-4 flex flex-col gap-2 transition-transform hover:-translate-y-0.5"
+                style={{ backgroundColor: t.soft, border: `1px solid ${C.border}` }}>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 font-bold text-xs"
+                    style={{ backgroundColor: avatar, color: "#fff" }}>
+                    {w.name?.charAt(0).toUpperCase()}
                   </div>
-                  <p className="text-xs" style={{ color: C.inkSoft }}>
-                    Started {fmtDate(w.startDate)} · Rs. {w.salary?.toLocaleString()}/mo
-                  </p>
-                  <Badge tone={tone}>{label}</Badge>
-                </button>
-              );
-            })}
-          </div>
-        </>
+                  <p className="font-bold" style={{ color: C.ink }}>{w.name}</p>
+                </div>
+                <Badge tone={tone}>{label}</Badge>
+              </button>
+            );
+          })}
+        </div>
       )}
 
       {showAdd && (
@@ -1265,10 +1254,10 @@ function BeefPage({ beef, tab, setTab, addBeef, updateBeef, deleteBeef }) {
 --------------------------------------------------------- */
 function VaccinesPage({ vaccines, addVaccine, deleteVaccine }) {
   const [showAdd, setShowAdd] = useState(false);
-  const sorted = [...vaccines].sort((a, b) => daysUntil(a.nextDue) - daysUntil(b.nextDue));
 
-  const statusOf = (v) => {
-    const d = daysUntil(v.nextDue);
+  const statusOf = (nextDue) => {
+    if (!nextDue) return { tone: "gray", label: "Not scheduled" };
+    const d = daysUntil(nextDue);
     if (d < 0) return { tone: "red", label: `Overdue ${Math.abs(d)}d` };
     if (d <= 7) return { tone: "yellow", label: d === 0 ? "Due today" : `Due in ${d}d` };
     return { tone: "green", label: `In ${d}d` };
@@ -1278,66 +1267,61 @@ function VaccinesPage({ vaccines, addVaccine, deleteVaccine }) {
     red: { soft: C.redSoft, color: C.red },
     yellow: { soft: C.yellowSoft, color: C.yellow },
     green: { soft: C.greenSoft, color: C.green },
+    gray: { soft: C.graySoft, color: C.gray },
   };
 
-  const overdueCount = vaccines.filter((v) => daysUntil(v.nextDue) < 0).length;
-  const dueSoonCount = vaccines.filter((v) => { const d = daysUntil(v.nextDue); return d >= 0 && d <= 7; }).length;
-  const upToDateCount = vaccines.filter((v) => daysUntil(v.nextDue) > 7).length;
+  // One box per known vaccine type, showing its most recently logged record.
+  const boxes = VACCINE_SUGGESTIONS.map((name) => {
+    const records = vaccines
+      .filter((v) => v.vaccineName === name)
+      .sort((a, b) => (a.dateGiven < b.dateGiven ? 1 : -1));
+    return { name, latest: records[0] || null };
+  });
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-bold" style={{ fontFamily: "'Zilla Slab', serif", color: C.ink }}>
-          Vaccine records ({vaccines.length})
+          Vaccine records
         </h2>
         <Btn icon={Plus} onClick={() => setShowAdd(true)}>Add vaccine</Btn>
       </div>
 
-      {vaccines.length === 0 ? (
-        <EmptyState text="No vaccine records yet. Add one to get reminders before the whole herd's next dose is due." />
-      ) : (
-        <>
-          <div className="grid grid-cols-3 gap-3 mb-5">
-            <StatCard emoji="⏰" label="Overdue" count={overdueCount} color={C.red} soft={C.redSoft} />
-            <StatCard emoji="🔔" label="Due soon" count={dueSoonCount} color={C.yellow} soft={C.yellowSoft} />
-            <StatCard emoji="✅" label="Up to date" count={upToDateCount} color={C.green} soft={C.greenSoft} />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {sorted.map((v) => {
-              const s = statusOf(v);
-              const t = toneStyle[s.tone];
-              return (
-                <div key={v.id} className="h-full flex flex-col gap-3 rounded-xl p-4"
-                  style={{ backgroundColor: t.soft, border: `1px solid ${C.border}` }}>
-                  <div className="flex items-start justify-between">
-                    <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-                      style={{ backgroundColor: "#fff" }}>
-                      <Syringe size={16} color={t.color} />
-                    </div>
-                    <button onClick={() => deleteVaccine(v.id)} className="p-1 rounded hover:opacity-70">
-                      <Trash2 size={15} color={C.gray} />
-                    </button>
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-bold text-sm" style={{ color: C.ink }}>{v.vaccineName}</p>
-                    <p className="text-xs mt-1" style={{ color: C.inkSoft }}>
-                      Given {fmtDate(v.dateGiven)}
-                    </p>
-                    <p className="text-xs" style={{ color: C.inkSoft }}>
-                      Next due {fmtDate(v.nextDue)}
-                    </p>
-                    {v.note && (
-                      <p className="text-xs mt-1 italic" style={{ color: C.inkSoft }}>{v.note}</p>
-                    )}
-                  </div>
-                  <Badge tone={s.tone}>{s.label}</Badge>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {boxes.map(({ name, latest }) => {
+          const s = statusOf(latest?.nextDue);
+          const t = toneStyle[s.tone];
+          return (
+            <div key={name} className="h-full flex flex-col gap-3 rounded-xl p-4"
+              style={{ backgroundColor: t.soft, border: `1px solid ${C.border}` }}>
+              <div className="flex items-start justify-between">
+                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                  style={{ backgroundColor: "#fff" }}>
+                  <Syringe size={16} color={t.color} />
                 </div>
-              );
-            })}
-          </div>
-        </>
-      )}
+                {latest && (
+                  <button onClick={() => deleteVaccine(latest.id)} className="p-1 rounded hover:opacity-70">
+                    <Trash2 size={15} color={C.gray} />
+                  </button>
+                )}
+              </div>
+              <div className="flex-1">
+                <p className="font-bold text-sm" style={{ color: C.ink }}>{name}</p>
+                <p className="text-xs mt-1" style={{ color: C.inkSoft }}>
+                  Given {latest ? fmtDate(latest.dateGiven) : "—"}
+                </p>
+                <p className="text-xs" style={{ color: C.inkSoft }}>
+                  Next due {latest ? fmtDate(latest.nextDue) : "—"}
+                </p>
+                {latest?.note && (
+                  <p className="text-xs mt-1 italic" style={{ color: C.inkSoft }}>{latest.note}</p>
+                )}
+              </div>
+              <Badge tone={s.tone}>{s.label}</Badge>
+            </div>
+          );
+        })}
+      </div>
 
       {showAdd && (
         <Modal title="Add vaccine record" onClose={() => setShowAdd(false)}>
