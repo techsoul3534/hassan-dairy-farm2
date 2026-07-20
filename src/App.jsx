@@ -611,11 +611,7 @@ function StatCard({ emoji, label, count, color, soft, onClick }) {
   );
 }
 
-function Dashboard({ cows, calves, beef, vaccines, workers, addWorker, updateWorker, deleteWorker, setPage, setBeefTab }) {
-  const dueVaccines = useMemo(
-    () => vaccines.filter((v) => daysUntil(v.nextDue) <= 7).sort((a, b) => daysUntil(a.nextDue) - daysUntil(b.nextDue)),
-    [vaccines]
-  );
+function Dashboard({ cows, calves, beef, vaccines, workers, addWorker, updateWorker, deleteWorker, deleteVaccine, setPage, setBeefTab }) {
   const beefCattle = beef.filter((b) => b.category === "Beef").length;
   const sheep = beef.filter((b) => b.category === "Mutton" && b.subtype === "Sheep").length;
   const goat = beef.filter((b) => b.category === "Mutton" && b.subtype === "Goat").length;
@@ -640,43 +636,17 @@ function Dashboard({ cows, calves, beef, vaccines, workers, addWorker, updateWor
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
-        <div className="h-full flex flex-col">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-bold" style={{ fontFamily: "'Zilla Slab', serif", color: C.ink }}>
-              Vaccines
-            </h2>
-            <Btn small variant="ghost" icon={ChevronRight} onClick={() => setPage("vaccines")}>View all</Btn>
-          </div>
-
-          {dueVaccines.length === 0 ? (
-            <EmptyState text="No vaccines due this week. Add a record any time from the Vaccines tab." />
-          ) : (
-            <div className="flex flex-col gap-2">
-              {dueVaccines.map((v) => {
-                const d = daysUntil(v.nextDue);
-                const tone = d < 0 ? "red" : "yellow";
-                const label = d < 0 ? `Overdue ${Math.abs(d)}d` : d === 0 ? "Due today" : `Due in ${d}d`;
-                return (
-                  <button key={v.id} onClick={() => setPage("vaccines")}
-                    className="flex items-center justify-between rounded-xl p-3 text-left"
-                    style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: C.blueSoft }}>
-                        <Syringe size={15} color={C.blue} />
-                      </div>
-                      <span className="text-sm font-semibold" style={{ color: C.ink }}>{v.vaccineName}</span>
-                    </div>
-                    <Badge tone={tone}>{label}</Badge>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-bold" style={{ fontFamily: "'Zilla Slab', serif", color: C.ink }}>
+            Vaccines
+          </h2>
+          <Btn small variant="ghost" icon={ChevronRight} onClick={() => setPage("vaccines")}>View all</Btn>
         </div>
-
-        <WorkersSection workers={workers} addWorker={addWorker} updateWorker={updateWorker} deleteWorker={deleteWorker} />
+        <VaccineTypeCards vaccines={vaccines} deleteVaccine={deleteVaccine} />
       </div>
+
+      <WorkersSection workers={workers} addWorker={addWorker} updateWorker={updateWorker} deleteWorker={deleteWorker} />
     </div>
   );
 }
@@ -1252,9 +1222,7 @@ function BeefPage({ beef, tab, setTab, addBeef, updateBeef, deleteBeef }) {
 /* ---------------------------------------------------------
    VACCINES PAGE
 --------------------------------------------------------- */
-function VaccinesPage({ vaccines, addVaccine, deleteVaccine }) {
-  const [showAdd, setShowAdd] = useState(false);
-
+function VaccineTypeCards({ vaccines, deleteVaccine }) {
   const statusOf = (nextDue) => {
     if (!nextDue) return { tone: "gray", label: "Not scheduled" };
     const d = daysUntil(nextDue);
@@ -1279,6 +1247,48 @@ function VaccinesPage({ vaccines, addVaccine, deleteVaccine }) {
   });
 
   return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {boxes.map(({ name, latest }) => {
+        const s = statusOf(latest?.nextDue);
+        const t = toneStyle[s.tone];
+        return (
+          <div key={name} className="h-full flex flex-col gap-3 rounded-xl p-4"
+            style={{ backgroundColor: t.soft, border: `1px solid ${C.border}` }}>
+            <div className="flex items-start justify-between">
+              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                style={{ backgroundColor: "#fff" }}>
+                <Syringe size={16} color={t.color} />
+              </div>
+              {latest && deleteVaccine && (
+                <button onClick={() => deleteVaccine(latest.id)} className="p-1 rounded hover:opacity-70">
+                  <Trash2 size={15} color={C.gray} />
+                </button>
+              )}
+            </div>
+            <div className="flex-1">
+              <p className="font-bold text-sm" style={{ color: C.ink }}>{name}</p>
+              <p className="text-xs mt-1" style={{ color: C.inkSoft }}>
+                Given {latest ? fmtDate(latest.dateGiven) : "—"}
+              </p>
+              <p className="text-xs" style={{ color: C.inkSoft }}>
+                Next due {latest ? fmtDate(latest.nextDue) : "—"}
+              </p>
+              {latest?.note && (
+                <p className="text-xs mt-1 italic" style={{ color: C.inkSoft }}>{latest.note}</p>
+              )}
+            </div>
+            <Badge tone={s.tone}>{s.label}</Badge>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function VaccinesPage({ vaccines, addVaccine, deleteVaccine }) {
+  const [showAdd, setShowAdd] = useState(false);
+
+  return (
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-bold" style={{ fontFamily: "'Zilla Slab', serif", color: C.ink }}>
@@ -1287,41 +1297,7 @@ function VaccinesPage({ vaccines, addVaccine, deleteVaccine }) {
         <Btn icon={Plus} onClick={() => setShowAdd(true)}>Add vaccine</Btn>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {boxes.map(({ name, latest }) => {
-          const s = statusOf(latest?.nextDue);
-          const t = toneStyle[s.tone];
-          return (
-            <div key={name} className="h-full flex flex-col gap-3 rounded-xl p-4"
-              style={{ backgroundColor: t.soft, border: `1px solid ${C.border}` }}>
-              <div className="flex items-start justify-between">
-                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-                  style={{ backgroundColor: "#fff" }}>
-                  <Syringe size={16} color={t.color} />
-                </div>
-                {latest && (
-                  <button onClick={() => deleteVaccine(latest.id)} className="p-1 rounded hover:opacity-70">
-                    <Trash2 size={15} color={C.gray} />
-                  </button>
-                )}
-              </div>
-              <div className="flex-1">
-                <p className="font-bold text-sm" style={{ color: C.ink }}>{name}</p>
-                <p className="text-xs mt-1" style={{ color: C.inkSoft }}>
-                  Given {latest ? fmtDate(latest.dateGiven) : "—"}
-                </p>
-                <p className="text-xs" style={{ color: C.inkSoft }}>
-                  Next due {latest ? fmtDate(latest.nextDue) : "—"}
-                </p>
-                {latest?.note && (
-                  <p className="text-xs mt-1 italic" style={{ color: C.inkSoft }}>{latest.note}</p>
-                )}
-              </div>
-              <Badge tone={s.tone}>{s.label}</Badge>
-            </div>
-          );
-        })}
-      </div>
+      <VaccineTypeCards vaccines={vaccines} deleteVaccine={deleteVaccine} />
 
       {showAdd && (
         <Modal title="Add vaccine record" onClose={() => setShowAdd(false)}>
@@ -1636,7 +1612,7 @@ export default function App() {
       <main className="px-4 sm:px-8 py-6 max-w-6xl mx-auto relative">
         {page === "dashboard" && (
           <Dashboard cows={cows} calves={calves} beef={beef} vaccines={vaccines} workers={workers}
-            addWorker={addWorker} updateWorker={updateWorker} deleteWorker={deleteWorker}
+            addWorker={addWorker} updateWorker={updateWorker} deleteWorker={deleteWorker} deleteVaccine={deleteVaccine}
             setPage={setPage} setBeefTab={setBeefTab} />
         )}
         {page === "cows" && (
